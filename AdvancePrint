@@ -1,0 +1,135 @@
+from telegram.ext import Updater
+from telegram.ext import CommandHandler
+from telegram.chataction import ChatAction
+from telegram.ext import MessageHandler, Filters
+from functools import wraps
+from telegram import (ReplyKeyboardMarkup, ReplyKeyboardRemove)
+from telegram.ext import (Updater, CommandHandler, MessageHandler, Filters,
+                          ConversationHandler)
+import os, time
+import datetime
+
+COPIES, SIZE, DUPLEX, TRAY, COLOR = range(5)   
+
+def send_typing_action(func):
+    """Sends typing action while processing func command."""
+
+    @wraps(func)
+    def command_func(update, context, *args, **kwargs):
+        context.bot.send_chat_action(chat_id=update.effective_message.chat_id, action=ChatAction.TYPING)
+        return func(update, context,  *args, **kwargs)
+
+    return command_func
+
+def echo(update, context):
+    context.bot.send_message(chat_id=update.effective_chat.id, text="Hey !!!\nDidn't get you please try again.")
+
+@send_typing_action
+def photo(update, context):
+    """ Processing image """
+    dt = datetime.datetime.now()
+    updates = context.bot.get_updates()
+    update.message.reply_text("Nice Image !!\nEnter the No. of copies : ")
+    newFile = update.message.photo[-1].get_file()
+    newFile.download('doc/{0}_{1}'.format(dt.strftime("%d%b%y_%H%M%S"), os.path.basename(newFile["file_path"])))
+    
+    return COPIES
+
+@send_typing_action
+def doc(update, context):
+    """ Processing documents """
+    dt = datetime.datetime.now()
+    updates = context.bot.get_updates()
+    update.message.reply_text("Processing your document !!!\nEnter the No. of copies : ")
+    newFile = update.message.effective_attachment.get_file()
+    newFile.download('doc/{0}_{1}'.format(dt.strftime("%d%b%y_%H%M%S"), os.path.basename(newFile["file_path"])))
+    
+    return COPIES
+    
+@send_typing_action
+def copies(update, context):
+    copy = update.message.text
+    reply_keyboard = [["A4", "A3", "/cancel"]]
+    update.message.reply_text("OK. You want {0} copies.\nPlease choose the paper size ?".format(copy),reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+    return SIZE
+    
+@send_typing_action
+def size(update, context):
+    size = update.message.text
+    reply_keyboard = [["Single", "Double", "/cancel"]]
+    update.message.reply_text("Paper size : {0}\nYou want single side or double side ?".format(size),reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+    return DUPLEX
+    
+@send_typing_action
+def duplex(update, context):
+    reply_keyboard = [["1","2","3","/cancel"]]
+    duples = update.message.text
+    update.message.reply_text("OK. You want {0} side\nChoose the paper tray.".format(duples),reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+    return TRAY
+    
+@send_typing_action
+def tray(update, context):
+    tray = update.message.text
+    reply_keyboard = [["B/W","Color","/cancel"]]
+    update.message.reply_text("Paper will be choosen from tray {0}.\nYou want B/W or colored print ?".format(tray),reply_markup=ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True))
+    return COLOR
+
+@send_typing_action
+def color(update, context):
+    color = update.message.text
+    update.message.reply_text("Print will be in {0}\n\nPrinting.......!!!".format(color))
+    return ConversationHandler.END
+
+def cancel(update, context):
+    user = update.message.from_user
+    update.message.reply_text('Bye! I hope we can talk again some day.',
+                              reply_markup=ReplyKeyboardRemove())
+
+    return ConversationHandler.END
+
+def main():
+    updater = Updater("ENTER YOUR TOCKEN", use_context=True)
+
+    # Get the dispatcher to register handlers
+    dp = updater.dispatcher
+
+    conv_handler = ConversationHandler(
+        entry_points=[MessageHandler(Filters.photo, photo),
+                     MessageHandler(Filters.document, doc)],
+
+        states={
+            COPIES : [MessageHandler(Filters.text, copies),
+                      CommandHandler('cancel', cancel)],
+            
+            SIZE: [MessageHandler(Filters.text, size),
+                   CommandHandler('cancel', cancel)],
+                      
+            DUPLEX: [MessageHandler(Filters.text, duplex),
+                   CommandHandler('cancel', cancel)],
+                      
+            TRAY: [MessageHandler(Filters.text, tray),
+                   CommandHandler('cancel', cancel)],
+                      
+            COLOR: [MessageHandler(Filters.text, color),
+                   CommandHandler('cancel', cancel)],
+
+        },
+
+        fallbacks=[CommandHandler('cancel', cancel)]
+    )
+
+    dp.add_handler(conv_handler,1)
+
+    can_handler = CommandHandler('cancel', cancel)
+    dp.add_handler(can_handler,2)
+
+    can_handler = CommandHandler('cancel', cancel)
+    dp.add_error_handler(can_handler)
+
+    # Start the Bot
+    updater.start_polling()
+    updater.idle()
+
+if __name__ == '__main__':
+    main()
+    
