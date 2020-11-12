@@ -11,7 +11,7 @@ import logging
 
 COLOR, MORE, COPIES, SIZE, DUPLEX, TRAY = range(6)
 
-project_path = "/home/pi/scripts/PrintBot"
+project_path = "/home/pi/printbot"
 
 default = {
     "color" : 0,
